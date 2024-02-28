@@ -660,6 +660,23 @@ func (object MQObject) GetSlice(gomd *MQMD,
 	return buffer[0:datalen], realDatalen, err
 }
 
+func (object MQObject) FasterGetSlice(mqmd *C_MQMD,
+	mqgmo *C_MQGMO, buffer []byte) ([]byte, int, error) {
+	realDatalen, err := object.fasterGetInternal(mqmd, mqgmo, buffer, true)
+
+	// The datalen will be set even if the buffer is too small - there
+	// will be one of MQRC_TRUNCATED_MSG_ACCEPTED or _FAILED depending on the
+	// GMO options. In any case, we return the available data along with the
+	// error code but need to make sure that the real untruncated
+	// message length is also returned. Also ensure we don't try to read past the
+	// end of the buffer.
+	datalen := realDatalen
+	if datalen > cap(buffer) {
+		datalen = cap(buffer)
+	}
+	return buffer[0:datalen], realDatalen, err
+}
+
 /*
 This is the real function that calls MQGET.
 */
@@ -714,6 +731,64 @@ func (object MQObject) getInternal(gomd *MQMD,
 	godatalen := int(datalen)
 	copyMDfromC(&mqmd, gomd)
 	copyGMOfromC(&mqgmo, gogmo)
+
+	mqreturn := MQReturn{MQCC: int32(mqcc),
+		MQRC: int32(mqrc),
+		verb: "MQGET",
+	}
+
+	if mqcc != C.MQCC_OK {
+		return godatalen, &mqreturn
+	}
+
+	return godatalen, nil
+
+}
+
+func (object MQObject) fasterGetInternal(mqmd *C_MQMD,
+	mqgmo *C_MQGMO, buffer []byte, useCap bool) (int, error) {
+
+	var mqrc C.MQLONG
+	var mqcc C.MQLONG
+	var datalen C.MQLONG
+	var ptr C.PMQVOID
+
+	// err := checkMD(gomd, "MQGET")
+	// if err != nil {
+	// 	return 0, err
+	// }
+	// err = checkGMO(gogmo, "MQGET")
+	// if err != nil {
+	// 	return 0, err
+	// }
+
+	bufflen := 0
+	if useCap {
+		bufflen = cap(buffer)
+	} else {
+		bufflen = len(buffer)
+	}
+
+	if bufflen > 0 {
+		// There has to be something in the buffer for CGO to be able to
+		// find its address. We know there's space backing the buffer so just
+		// set the first byte to something.
+		if useCap && len(buffer) == 0 {
+			buffer = append(buffer, 0)
+		}
+		ptr = (C.PMQVOID)(unsafe.Pointer(&buffer[0]))
+	} else {
+		ptr = nil
+	}
+
+	C.MQGET(object.qMgr.hConn, object.hObj, (C.PMQVOID)(unsafe.Pointer(mqmd)),
+		(C.PMQVOID)(unsafe.Pointer(mqgmo)),
+		(C.MQLONG)(bufflen),
+		ptr,
+		&datalen,
+		&mqcc, &mqrc)
+
+	godatalen := int(datalen)
 
 	mqreturn := MQReturn{MQCC: int32(mqcc),
 		MQRC: int32(mqrc),

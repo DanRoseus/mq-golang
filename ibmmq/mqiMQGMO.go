@@ -50,6 +50,8 @@ type MQGMO struct {
 	MsgHandle      MQMessageHandle
 }
 
+type C_MQGMO C.MQGMO
+
 /*
 NewMQGMO fills in default values for the MQGMO structure
 */
@@ -93,6 +95,35 @@ func checkGMO(gogmo *MQGMO, verb string) error {
 }
 
 func copyGMOtoC(mqgmo *C.MQGMO, gogmo *MQGMO) {
+	var i int
+
+	setMQIString((*C.char)(&mqgmo.StrucId[0]), "GMO ", 4)
+	mqgmo.Version = C.MQLONG(gogmo.Version)
+	mqgmo.Options = C.MQLONG(gogmo.Options) | C.MQGMO_FAIL_IF_QUIESCING
+	mqgmo.WaitInterval = C.MQLONG(gogmo.WaitInterval)
+	mqgmo.Signal1 = C.MQLONG(gogmo.Signal1)
+	mqgmo.Signal2 = C.MQLONG(gogmo.Signal2)
+	setMQIString((*C.char)(&mqgmo.ResolvedQName[0]), gogmo.ResolvedQName, C.MQ_OBJECT_NAME_LENGTH)
+	mqgmo.MatchOptions = C.MQLONG(gogmo.MatchOptions)
+	mqgmo.GroupStatus = C.MQCHAR(gogmo.GroupStatus)
+	mqgmo.SegmentStatus = C.MQCHAR(gogmo.SegmentStatus)
+	mqgmo.Segmentation = C.MQCHAR(gogmo.Segmentation)
+	mqgmo.Reserved1 = C.MQCHAR(gogmo.Reserved1)
+	for i = 0; i < C.MQ_MSG_TOKEN_LENGTH; i++ {
+		mqgmo.MsgToken[i] = C.MQBYTE(gogmo.MsgToken[i])
+	}
+	mqgmo.ReturnedLength = C.MQLONG(gogmo.ReturnedLength)
+	mqgmo.Reserved2 = C.MQLONG(gogmo.Reserved2)
+	if gogmo.MsgHandle.hMsg != C.MQHM_NONE {
+		if mqgmo.Version < C.MQGMO_VERSION_4 {
+			mqgmo.Version = C.MQGMO_VERSION_4
+		}
+		mqgmo.MsgHandle = gogmo.MsgHandle.hMsg
+	}
+	return
+}
+
+func CopyGMOtoC(mqgmo *C_MQGMO, gogmo *MQGMO) {
 	var i int
 
 	setMQIString((*C.char)(&mqgmo.StrucId[0]), "GMO ", 4)

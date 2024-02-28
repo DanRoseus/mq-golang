@@ -68,6 +68,8 @@ type MQMD struct {
 	OriginalLength   int32
 }
 
+type C_MQMD C.MQMD
+
 /*
 NewMQMD fills in default values for the MQMD structure
 */
@@ -136,6 +138,57 @@ func checkMD(gomd *MQMD, verb string) error {
 		return &mqreturn
 	}
 	return nil
+}
+
+func CopyMDtoC(mqmd *C_MQMD, gomd *MQMD) {
+	var i int
+	setMQIString((*C.char)(&mqmd.StrucId[0]), "MD  ", 4)
+	mqmd.Version = C.MQLONG(gomd.Version)
+	mqmd.Report = C.MQLONG(gomd.Report)
+	mqmd.MsgType = C.MQLONG(gomd.MsgType)
+	mqmd.Expiry = C.MQLONG(gomd.Expiry)
+	mqmd.Feedback = C.MQLONG(gomd.Feedback)
+	mqmd.Encoding = C.MQLONG(gomd.Encoding)
+	mqmd.CodedCharSetId = C.MQLONG(gomd.CodedCharSetId)
+	// Make sure Format is space padded
+	setMQIString((*C.char)(&mqmd.Format[0]), (gomd.Format + space8), C.MQ_FORMAT_LENGTH)
+	mqmd.Priority = C.MQLONG(gomd.Priority)
+	mqmd.Persistence = C.MQLONG(gomd.Persistence)
+
+	for i = 0; i < C.MQ_MSG_ID_LENGTH; i++ {
+		mqmd.MsgId[i] = C.MQBYTE(gomd.MsgId[i])
+	}
+	for i = 0; i < C.MQ_CORREL_ID_LENGTH; i++ {
+		mqmd.CorrelId[i] = C.MQBYTE(gomd.CorrelId[i])
+	}
+	mqmd.BackoutCount = C.MQLONG(gomd.BackoutCount)
+
+	setMQIString((*C.char)(&mqmd.ReplyToQ[0]), gomd.ReplyToQ, C.MQ_OBJECT_NAME_LENGTH)
+	setMQIString((*C.char)(&mqmd.ReplyToQMgr[0]), gomd.ReplyToQMgr, C.MQ_OBJECT_NAME_LENGTH)
+
+	setMQIString((*C.char)(&mqmd.UserIdentifier[0]), gomd.UserIdentifier, C.MQ_USER_ID_LENGTH)
+	for i = 0; i < C.MQ_ACCOUNTING_TOKEN_LENGTH; i++ {
+		mqmd.AccountingToken[i] = C.MQBYTE(gomd.AccountingToken[i])
+	}
+	setMQIString((*C.char)(&mqmd.ApplIdentityData[0]), gomd.ApplIdentityData, C.MQ_APPL_IDENTITY_DATA_LENGTH)
+	mqmd.PutApplType = C.MQLONG(gomd.PutApplType)
+	setMQIString((*C.char)(&mqmd.PutApplName[0]), gomd.PutApplName, C.MQ_PUT_APPL_NAME_LENGTH)
+	if !gomd.PutDateTime.IsZero() {
+		gomd.PutDate, gomd.PutTime = createCDateTime(gomd.PutDateTime)
+	}
+	setMQIString((*C.char)(&mqmd.PutDate[0]), gomd.PutDate, C.MQ_PUT_DATE_LENGTH)
+	setMQIString((*C.char)(&mqmd.PutTime[0]), gomd.PutTime, C.MQ_PUT_TIME_LENGTH)
+	setMQIString((*C.char)(&mqmd.ApplOriginData[0]), gomd.ApplOriginData, C.MQ_APPL_ORIGIN_DATA_LENGTH)
+
+	for i = 0; i < C.MQ_GROUP_ID_LENGTH; i++ {
+		mqmd.GroupId[i] = C.MQBYTE(gomd.GroupId[i])
+	}
+	mqmd.MsgSeqNumber = C.MQLONG(gomd.MsgSeqNumber)
+	mqmd.Offset = C.MQLONG(gomd.Offset)
+	mqmd.MsgFlags = C.MQLONG(gomd.MsgFlags)
+	mqmd.OriginalLength = C.MQLONG(gomd.OriginalLength)
+
+	return
 }
 
 func copyMDtoC(mqmd *C.MQMD, gomd *MQMD) {
